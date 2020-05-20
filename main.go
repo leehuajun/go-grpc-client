@@ -2,14 +2,37 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	proxy "go-grpc-client/api"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"io/ioutil"
 	"log"
 )
 
 var conn *grpc.ClientConn
+
+func GetClientCreds() credentials.TransportCredentials {
+	cert, err := tls.LoadX509KeyPair("cert/client.pem", "cert/client.key")
+	if err != nil {
+		log.Fatal(err)
+	}
+	certPool := x509.NewCertPool()
+	ca, err := ioutil.ReadFile("cert/ca.pem")
+	if err != nil {
+		log.Fatal(err)
+	}
+	certPool.AppendCertsFromPEM(ca)
+	creds := credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ServerName:   "localhost",
+		RootCAs:      certPool,
+	})
+	return creds
+}
 
 func main() {
 	//客户端拨号RPC服务器，返回连接对象
@@ -24,6 +47,19 @@ func main() {
 
 	helloInvoker()
 	productInvoker()
+	studentInvoker()
+}
+
+func studentInvoker() {
+	class := proxy.Class_C1901
+	studentClient := proxy.NewStudentServiceClient(conn)
+	studentRequest := proxy.StudentRequest{Class: class}
+	studentResponse, err := studentClient.GetStudentsByClass(context.Background(), &studentRequest)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("%s: %d\n", class, studentResponse.Students)
+
 }
 
 func helloInvoker() {
